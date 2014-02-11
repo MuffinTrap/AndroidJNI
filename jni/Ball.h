@@ -19,9 +19,6 @@ public:
 
 	void randomColors();
 
-	Vector3 _direction;
-	float _speed;
-
 };
 
 #endif

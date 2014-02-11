@@ -34,6 +34,7 @@ public:
     Vector3 operator-(const Vector3& other);
     void operator-=(const Vector3& other);
 
+    Vector3& operator=(const Vector3& other);
 
 
 private:

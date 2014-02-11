@@ -15,8 +15,7 @@ public:
 
 	void createVertices(Vector3 color, float size);
 
-	Vector3 _direction;
-	float _speed;
+
 
 };
 
