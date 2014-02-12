@@ -191,15 +191,24 @@ void Game::initialise(EGLNativeWindowType windowHandle)
 	rightWall._position.setValues(0.9f, 0.0f, 0.0f);
 	rightWall._normal.setValues(-1.0f, 0.0f, 0.0f);
 
+	leftWall._position.setValues(-0.9f, 0.0f, 0.0f);
+	leftWall._normal.setValues(1.0f, 0.0f, 0.0f);
+
+	topWall._position.setValues(0.0f, 0.9f, 0.0f);
+	topWall._normal.setValues(0.0f, -1.0f, 0.0f);
+
+	bottomWall._position.setValues(0.0f, -0.9f, 0.0f);
+	bottomWall._normal.setValues(0.0f, 1.0f, 0.0f);
+
 	triangle.init();
 	triangle._position.setValues(-0.5f, -0.5f, 0.0f);
 	triangle.createVertices(Vector3(1.0f, 1.0f, 0.0f), 0.5f);
 
 
 	box.init();
-	box._position.setValues(0.1f, 0.1f, 0.1f);
+	box._position.setValues(0.0f, 0.4f, 0.0f);
 	box.createVertices(Vector3(1.0f, 0.0f, 0.0f), 0.1f);
-	box._speed = 0.1f;
+	box._speed = 0.3f;
 	box._direction.setValues(1.0f, 1.0f, 0.0f);
 	box._direction.normalize();
 
@@ -222,38 +231,49 @@ void Game::processTouch(const float locationX, const float locationY)
 void Game::update(const float elapsedTime)
 {
 	// Fun fun here!
+	box.update(elapsedTime);
 
-	if(!collisionHappened)
+
+	collisionHappened = false;
+	// Check collisions
+	do
 	{
-		box.update(elapsedTime);
-		if(box._position.x > 1.0f || box._position.x < -1.0f)
-		{
+		collisionHappened = checkCollision(box, rightWall, elapsedTime)
+		|| checkCollision(box, topWall, elapsedTime)
+		|| checkCollision(box, leftWall, elapsedTime)
+		|| checkCollision(box, bottomWall, elapsedTime);
+	}while(collisionHappened);
 
-		}
-		// Check collision with the right wall
-		if(checkCollision(box, rightWall, elapsedTime) )
-		{
-
-			if(!collisionHappened)
-			{
-				collisionHappened = !collisionHappened;
-			}
-		}
-	}
 }
 
+// Add distance laters bro
 bool Game::checkCollision(DrawableObject& object, Wall& wall, float deltaTime)
 {
-	// wall to object
-	Vector3 wTo = object._position - wall._position;
-	// wall to objet along wall normal component
-	Vector3 wToN = wall._normal * Vector3::dot(wTo, wall._normal);
-	float distanceN = wToN.getMagnitude();
-	if( (distanceN - object._size) < 0.0f )
-	{
-		LOG("distance to wall is %f", distanceN );
+	// Calculate adjusted wall position to allow calculations for point collision
+	// Now the point is always behind the "wall" after collision
+	Vector3 moveWall = wall._normal * object._size;
+	Vector3 adjustedWallPos = wall._position + moveWall;
 
-		// Move ball to collision point
+	// wall to object
+	Vector3 wTo = object._position - adjustedWallPos;
+	// wall to objet along wall normal component
+	float dotWallN = Vector3::dot(wTo, wall._normal);
+
+
+	if( dotWallN < 0.0f )
+	{
+		// Collision!
+		LOG(" *** Object collided to wall at %f,%f,%f", wall._position.x, wall._position.y, wall._position.z );
+		LOG("Adjusted wall position is at %f,%f,%f", adjustedWallPos.x, adjustedWallPos.y, adjustedWallPos.z );
+		Vector3 wToN = wall._normal * dotWallN;
+		float distanceTwNAfterC = wToN.getMagnitude();
+
+		// distance to wall after collision on the collision line
+		LOG("distance to wall after collision is %f", distanceTwNAfterC );
+
+
+
+		// Move object to position it was in the start of the frame
 		Vector3 position = object._position;
 		LOG("position is %f,%f,%f", position.x, position.y, position.z );
 		LOG("direction is %f,%f,%f", object._direction.x, object._direction.y, object._direction.z );
@@ -261,13 +281,15 @@ bool Game::checkCollision(DrawableObject& object, Wall& wall, float deltaTime)
 
 		// Position and distance along collision line before collision
 		Vector3 prevPosition = object._position;
-		Vector3 prevwTo = prevPosition - wall._position;
+		Vector3 prevwTo = prevPosition - adjustedWallPos; // Adjusted
 		Vector3 prevwToN = wall._normal * Vector3::dot(prevwTo, wall._normal);
-		float distancePrevCollN = prevwToN.getMagnitude();
+		// Distance to wall before collision on collision line
+		float distanceTwNPrevC = prevwToN.getMagnitude();
+		LOG("distance to wall before collision is %f", distanceTwNPrevC );
 		LOG("PrevPosition is %f,%f,%f", prevPosition.x, prevPosition.y, prevPosition.z );
 
 		Vector3 movement = position - prevPosition;
-		LOG("movement is %f,%f,%f", movement.x, movement.y, movement.z );
+		LOG("movement during frame is %f,%f,%f", movement.x, movement.y, movement.z );
 
 		// Projection of the total movement against wall normal
 		float movementNdot = Vector3::dot(movement, wall._normal);
@@ -278,26 +300,23 @@ bool Game::checkCollision(DrawableObject& object, Wall& wall, float deltaTime)
 
 		LOG("moveDistance is %f, along collision line is %f", moveDistance, movementNdistance );
 
-		// distanceN must be smaller than size ?!~~   needs work., if object really fast
-		// (distance+size)/moveDistance is how much of the movement was spent inside wall
-		// 1.0f - this is the amount before wall
-		LOG(" distanceN is %f, size is %f, movementNdistance is %f",  distanceN,object._size, movementNdistance);
-		float ratio = (object._size - distanceN)/movementNdistance;
-		float scaleAmount = 1.0f - ratio;
-		LOG("scaleAmount is %f", scaleAmount );
-		object.update(deltaTime * scaleAmount);
+		float ratioBefore = distanceTwNPrevC / movementNdistance;
+		float ratioAfter = distanceTwNAfterC / movementNdistance;
+		LOG("Ratios are before %f, after collision %f", ratioBefore, ratioAfter);
+
+		// Move object to collision point
+		object.update(deltaTime * ratioBefore);
 
 		// Calculate new direction
-		Vector3 directionNormal = wall._normal * Vector3::dot(object._direction, wall._normal);
-		LOG("directionNormal is %f,%f,%f", directionNormal.x, directionNormal.y, directionNormal.z );
+		Vector3 directionN = wall._normal * Vector3::dot(object._direction, wall._normal);
+		LOG("directionNormal is %f,%f,%f", directionN.x, directionN.y, directionN.z );
 		LOG("Direction is %f,%f,%f", object._direction.x, object._direction.y, object._direction.z );
-		object._direction = object._direction - (directionNormal * 2.0f);
+		object._direction = object._direction - (directionN * 2.0f);
 		LOG("new direction is %f,%f,%f", object._direction.x, object._direction.y, object._direction.z );
 
 		// update with the leftover time
-		object.update(deltaTime * (1.0f - scaleAmount));
-		// Collision!
-		LOG("Object collided to wall at %f,%f,%f", wall._position.x, wall._position.y, wall._position.z );
+		object.update(deltaTime * (ratioAfter));
+
 		return true;
 	}
 

@@ -29,10 +29,13 @@ public:
     void operator*=(const float scalar);
 
     Vector3 operator+(const Vector3& other);
+    friend Vector3 operator+(const Vector3& a, const Vector3& b);
     void operator+=(const Vector3& other);
 
     Vector3 operator-(const Vector3& other);
+    friend Vector3 operator-(const Vector3& a, const Vector3& b);
     void operator-=(const Vector3& other);
+
 
     Vector3& operator=(const Vector3& other);
 
